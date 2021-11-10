@@ -1,0 +1,62 @@
+version: "3.6"
+
+services:
+  cloudflared:
+    container_name: cloudflared
+    restart: unless-stopped
+    image: jauderho/cloudflared
+    command: proxy-dns
+    environment:
+      - "PROXY_DNS_UPSTREAM=https://1.1.1.1/dns-query,https://1.0.0.1/dns-query"
+      - "TUNNEL_DNS_PORT=5053"
+      - "TUNNEL_DNS_ADDRESS=172.30.0.3"
+    networks:
+      internal:
+        ipv4_address: 172.30.0.3
+
+  pihole:
+    container_name: pihole
+    restart: unless-stopped
+    image: pihole/pihole
+    # For DHCP it is recommended to remove these ports and instead add: network_mode: "host"
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "67:67/udp"
+      - "80:80/tcp"
+    environment:
+      - "TZ=Italy/Rome"
+      - "WEBPASSWORD=admin"
+
+      # Internal IP of the cloudflared container
+      - "DNS1=172.30.0.3#5053"
+
+      # Explicitly disable a second DNS server, otherwise Pi-hole uses Google
+      - "DNS2=no"
+
+      # Listen on all interfaces and permit all origins
+      # This allows Pihole to work in this setup and when answering across VLANS,
+      # but do not expose pi-hole to the internet!
+      - "DNSMASQ_LISTENING=all"
+
+    # Volumes store your data between container upgrades
+    volumes:
+      - './etc-pihole/:/etc/pihole/'
+      - './etc-dnsmasq.d/:/etc/dnsmasq.d/'
+    cap_add:
+      - NET_ADMIN
+    networks:
+      internal:
+        ipv4_address: 172.30.0.2
+
+    # Starts cloudflard before Pi-hole
+    depends_on:
+      - cloudflared
+
+networks:
+  # Create the internal network
+  internal:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/29
+          gateway: 172.30.0.1
