@@ -13,3 +13,7 @@ docker-compose up -d
 ```bash
 docker-compose down
 ```
+## How to change pihole's web interface's password
+```bash
+docker exec -it pihole pihole -a -p
+```
